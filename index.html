@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1B3A4B">
+<title>Wie adlerianisch denkst du?</title>
+<meta name="description" content="Selbsttest nach Alfred Adler – Geschichte-Referat der 8a">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,400;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="wrap" id="app"></main>
+
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script>
+(function () {
+  const D = window.ADLER;
+  const app = document.getElementById("app");
+
+  // ---- Ablauf ----
+  const steps = [];
+  steps.push({ kind: "start" });
+  steps.push({ kind: "intro", part: "A" });
+  D.partA.forEach(q => steps.push({ kind: "likert", q }));
+  steps.push({ kind: "birth" });
+  steps.push({ kind: "intro", part: "B" });
+  D.partB.forEach(q => steps.push({ kind: "choice", q }));
+  steps.push({ kind: "result" });
+  const questionSteps = steps.filter(s => s.kind === "likert" || s.kind === "birth" || s.kind === "choice");
+  const total = questionSteps.length;
+
+  let state;
+  function reset() {
+    state = { i: 0, a: {}, b: {}, birth: null, order: {}, submitted: false };
+    // Antworten in Teil B bei jedem Durchgang neu mischen
+    D.partB.forEach(q => { state.order[q.id] = shuffle(q.options.map((_, k) => k)); });
+  }
+  function shuffle(arr) {
+    for (let k = arr.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [arr[k], arr[j]] = [arr[j], arr[k]]; }
+    return arr;
+  }
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function go(delta) { state.i = Math.max(0, Math.min(steps.length - 1, state.i + delta)); render(); window.scrollTo(0, 0); }
+
+  function topBar(step) {
+    const n = questionSteps.indexOf(step) + 1;
+    const done = n > 0 ? n - 1 : (step.part === "B" ? D.partA.length + 1 : 0);
+    return `<div class="top">
+      <button class="back" id="back" aria-label="Zurück">‹</button>
+      <div class="bar"><i style="width:${Math.round(done / total * 100)}%"></i></div>
+      <div class="count">${n > 0 ? n + "/" + total : ""}</div>
+    </div>`;
+  }
+
+  function render() {
+    const s = steps[state.i];
+    let html = "";
+    if (s.kind === "start") {
+      html = `<section class="fade">
+        <div class="hero">
+          <div class="eyebrow">Selbsttest nach Alfred Adler</div>
+          <h1>Wie adlerianisch denkst du?</h1>
+          <p>Finde heraus, welcher Lebensstil-Typ du nach Adler bist – und wie viel von seiner Denkweise schon in deinem Alltag steckt.</p>
+        </div>
+        <div class="facts">
+          <span class="fact">⏱ ca. 3 Minuten</span>
+          <span class="fact">15 Fragen</span>
+          <span class="fact">🔒 anonym</span>
+        </div>
+        <button class="btn" id="next">Test starten</button>
+        <p class="footer">Geschichte-Referat der 8a · Niki, Rupert, Oscar &amp; Ano</p>
+      </section>`;
+    } else if (s.kind === "intro") {
+      const A = s.part === "A";
+      html = `<section class="fade">${topBar(s)}
+        <div class="intro-card">
+          <div class="circle ${A ? "sage" : "navy"}">${A ? "🧭" : "🎯"}</div>
+          <div class="part">Teil ${s.part}</div>
+          <h2>${A ? "Dein Lebensstil" : "Deine Reaktionen"}</h2>
+          <p>${A
+            ? "Adler unterschied Menschen danach, wie <b>aktiv</b> sie ihr Leben anpacken und wie stark ihr <b>Gemeinschaftsgefühl</b> ist. Bewerte 8 Aussagen – antworte ehrlich, nicht so, wie es gut klingt."
+            : "Jetzt kommen 6 Alltagssituationen. Wähle die Reaktion, die am ehesten zu dir passt. Es gibt keine offensichtlich richtige Antwort – also nicht raten, sondern ehrlich sein."}</p>
+        </div>
+        <button class="btn" id="next">Los geht's</button>
+      </section>`;
+    } else if (s.kind === "likert") {
+      const v = state.a[s.q.id];
+      html = `<section class="fade">${topBar(s)}
+        <div class="part">Teil A · Dein Lebensstil</div>
+        <p class="q">${esc(s.q.text)}</p>
+        <div class="opts likert">${D.likertLabels.map((l, k) =>
+          `<button class="opt ${v === k + 1 ? "sel" : ""}" data-v="${k + 1}"><span class="dot">${k + 1}</span>${l}</button>`).join("")}
+        </div>
+      </section>`;
+    } else if (s.kind === "birth") {
+      html = `<section class="fade">${topBar(s)}
+        <div class="part">Bonus · zählt nicht zur Punktzahl</div>
+        <p class="q">${esc(D.birth.question)}</p>
+        <div class="opts">${D.birth.options.map(o =>
+          `<button class="opt ${state.birth === o.id ? "sel" : ""}" data-v="${o.id}"><span class="dot"></span>${esc(o.text)}</button>`).join("")}
+        </div>
+      </section>`;
+    } else if (s.kind === "choice") {
+      const v = state.b[s.q.id];
+      html = `<section class="fade">${topBar(s)}
+        <div class="part">Teil B · Deine Reaktionen</div>
+        <p class="q">${esc(s.q.text)}</p>
+        <div class="opts">${state.order[s.q.id].map((k, idx) => {
+          const o = s.q.options[k];
+          return `<button class="opt ${v === o.p ? "sel" : ""}" data-v="${o.p}"><span class="dot">${"ABCD"[idx]}</span>${esc(o.text)}</button>`;
+        }).join("")}
+        </div>
+      </section>`;
+    } else if (s.kind === "result") {
+      html = resultHtml();
+    }
+    app.innerHTML = html;
+    bind(s);
+  }
+
+  function bind(s) {
+    const next = document.getElementById("next");
+    if (next) next.onclick = () => go(1);
+    const back = document.getElementById("back");
+    if (back) back.onclick = () => go(-1);
+    let locked = false;
+    app.querySelectorAll(".opt").forEach(b => b.onclick = () => {
+      if (locked) return;
+      locked = true;
+      const v = b.dataset.v;
+      if (s.kind === "likert") state.a[s.q.id] = Number(v);
+      else if (s.kind === "choice") state.b[s.q.id] = Number(v);
+      else if (s.kind === "birth") state.birth = v;
+      app.querySelectorAll(".opt").forEach(x => x.classList.remove("sel"));
+      b.classList.add("sel");
+      setTimeout(() => go(1), 220);
+    });
+    const again = document.getElementById("again");
+    if (again) again.onclick = () => { reset(); render(); window.scrollTo(0, 0); };
+  }
+
+  function compute() {
+    const a = D.scoreA(state.a);
+    const type = D.classify(a.aktivitaet, a.gemeinschaft);
+    const score = D.scoreB(state.b);
+    return { ...a, type, score, pct: Math.round(score / 18 * 100), level: D.level(score) };
+  }
+
+  function resultHtml() {
+    const r = compute();
+    const t = D.types[r.type];
+    const b = D.birth.options.find(o => o.id === state.birth);
+    submit(r);
+    return `<section class="fade">
+      <div class="res-head">
+        <div class="circle">${t.icon}</div>
+        <div class="small">Dein Lebensstil-Typ</div>
+        <h2>${t.name}</h2>
+        <div class="adler">${t.adler}</div>
+      </div>
+
+      <div class="block">
+        <p>${t.text}</p>
+        <div class="meter"><div class="lbl"><span>Aktivität</span><span>${r.aktivitaet} %</span></div>
+          <div class="track"><div class="fill" style="width:${r.aktivitaet}%"></div></div></div>
+        <div class="meter"><div class="lbl"><span>Gemeinschaftsgefühl</span><span>${r.gemeinschaft} %</span></div>
+          <div class="track"><div class="fill" style="width:${r.gemeinschaft}%"></div></div></div>
+      </div>
+
+      <div class="block">
+        <h3>🎯 So adlerianisch denkst du</h3>
+        <div class="big">${r.pct} %</div><div class="note" style="margin-top:4px">${r.score} von 18 Punkten</div>
+        <div class="meter"><div class="track"><div class="fill gold" style="width:${r.pct}%"></div></div></div>
+        <span class="lvl">${r.level.name}</span>
+        <p>${r.level.text}</p>
+      </div>
+
+      ${b ? `<div class="block">
+        <h3>👨‍👩‍👧 Deine Geschwisterposition</h3>
+        <p>${b.result}</p>
+        <p class="note">${D.birth.note}</p>
+      </div>` : ""}
+
+      <div class="block wozu">
+        <h3>❓ Deine Wozu-Frage zum Mitnehmen</h3>
+        <p>${t.wozu}</p>
+      </div>
+
+      <p class="footer">Adler selbst betonte: Typen sind nur ein Denkwerkzeug – jeder Mensch ist einzigartig und kann seinen Lebensstil jederzeit ändern. Nimm dein Ergebnis als Denkanstoß, nicht als Urteil.</p>
+      <div class="actions"><button class="btn ghost" id="again">Test nochmal machen</button></div>
+      <p class="footer">Anonym: Gespeichert wird nur das Ergebnis, kein Name.<br>Geschichte-Referat der 8a</p>
+    </section>`;
+  }
+
+  // ---- Ergebnis anonym speichern (Test funktioniert auch ohne) ----
+  function submit(r) {
+    if (state.submitted) return;
+    state.submitted = true;
+    const c = window.ADLER_CONFIG || {};
+    if (!c.supabaseUrl || !c.supabaseKey) return;
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 6000);
+    fetch(c.supabaseUrl + "/rest/v1/results", {
+      method: "POST",
+      headers: { "apikey": c.supabaseKey, "Content-Type": "application/json", "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        type: r.type, aktivitaet: r.aktivitaet, gemeinschaft: r.gemeinschaft,
+        adler_score: r.score, birth: state.birth || null
+      }),
+      signal: ctrl.signal
+    }).catch(() => {});
+  }
+
+  reset();
+  render();
+})();
+</script>
+</body>
+</html>
